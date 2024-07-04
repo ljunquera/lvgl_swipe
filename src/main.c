@@ -8,6 +8,7 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/display.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/input/input.h>
 #include <lvgl.h>
 #include <stdio.h>
 #include <string.h>
@@ -16,45 +17,39 @@
 
 #define LOG_LEVEL CONFIG_LOG_DEFAULT_LEVEL
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(app);
+LOG_MODULE_REGISTER(app, LOG_LEVEL_DBG);
 
-static uint32_t count;
+#define CANVAS_WIDTH  240
+#define CANVAS_HEIGHT  280
 
-#ifdef CONFIG_GPIO
-static struct gpio_dt_spec button_gpio = GPIO_DT_SPEC_GET_OR(
-		DT_ALIAS(sw0), gpios, {0});
-static struct gpio_callback button_callback;
+static int last_x = -1;
+static int last_y = -1; 
 
-static void button_isr_callback(const struct device *port,
-				struct gpio_callback *cb,
-				uint32_t pins)
-{
-	ARG_UNUSED(port);
-	ARG_UNUSED(cb);
-	ARG_UNUSED(pins);
+//screens
+static  lv_obj_t *scr_home;
+static  lv_obj_t *scr_left;
+static  lv_obj_t *scr_right;
+static  lv_obj_t *scr_top;
+static  lv_obj_t *scr_bottom;
 
-	count = 0;
-}
-#endif /* CONFIG_GPIO */
+int create_screen_home();
+int create_screen_left();
+int create_screen_right();
+int create_screen_top();
+int create_screen_bottom();
 
-#ifdef CONFIG_LV_Z_ENCODER_INPUT
-static const struct device *lvgl_encoder =
-	DEVICE_DT_GET(DT_COMPAT_GET_ANY_STATUS_OKAY(zephyr_lvgl_encoder_input));
-#endif /* CONFIG_LV_Z_ENCODER_INPUT */
+static void lv_btn_click_callback_left(lv_event_t *e);
+static void lv_btn_click_callback_right(lv_event_t *e);
+static void lv_btn_click_callback_top(lv_event_t *e);
+static void lv_btn_click_callback_bottom(lv_event_t *e);
 
-static void lv_btn_click_callback(lv_event_t *e)
-{
-	ARG_UNUSED(e);
-
-	count = 0;
-}
+//events
+static void on_lvgl_screen_gesture_event_callback(lv_event_t *e);
+static void on_input_subsys_callback(struct input_event *evt);
 
 int main(void)
 {
-	char count_str[11] = {0};
 	const struct device *display_dev;
-	lv_obj_t *hello_world_label;
-	lv_obj_t *count_label;
 
 	display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 	if (!device_is_ready(display_dev)) {
@@ -62,75 +57,265 @@ int main(void)
 		return 0;
 	}
 
-#ifdef CONFIG_GPIO
-	if (gpio_is_ready_dt(&button_gpio)) {
-		int err;
+	//INPUT_CALLBACK_DEFINE(NULL, on_input_subsys_callback);
 
-		err = gpio_pin_configure_dt(&button_gpio, GPIO_INPUT);
-		if (err) {
-			LOG_ERR("failed to configure button gpio: %d", err);
-			return 0;
-		}
+	create_screen_home();
+	lv_task_handler();
+	display_blanking_off(display_dev);
 
-		gpio_init_callback(&button_callback, button_isr_callback,
-				   BIT(button_gpio.pin));
-
-		err = gpio_add_callback(button_gpio.port, &button_callback);
-		if (err) {
-			LOG_ERR("failed to add button callback: %d", err);
-			return 0;
-		}
-
-		err = gpio_pin_interrupt_configure_dt(&button_gpio,
-						      GPIO_INT_EDGE_TO_ACTIVE);
-		if (err) {
-			LOG_ERR("failed to enable button callback: %d", err);
-			return 0;
-		}
+	
+	while (1) {
+		lv_task_handler();
+		k_sleep(K_MSEC(10));
 	}
-#endif /* CONFIG_GPIO */
+	
+}
 
-#ifdef CONFIG_LV_Z_ENCODER_INPUT
-	lv_obj_t *arc;
-	lv_group_t *arc_group;
+static void handle_screen_gesture(lv_dir_t event_code)
+{
+        switch (event_code) {
+            case LV_DIR_LEFT: {
+				LOG_DBG("LEFT gesture detected");
+				create_screen_left();
+                break;
+            }
+            case LV_DIR_RIGHT: {
+				LOG_DBG("RIGHT gesture detected");
+				create_screen_right();
+                break;
+            }
+            case LV_DIR_TOP: {
+				LOG_DBG("TOP gesture detected");
+				create_screen_top();
+                break;
+            }
+            case LV_DIR_BOTTOM: {
+				LOG_DBG("BOTTOM gesture detected");
+      			create_screen_bottom();
+                break;
+            }
+            default:
+                LOG_ERR("Not a valid gesture code: %d", event_code);
+        }
 
-	arc = lv_arc_create(lv_scr_act());
-	lv_obj_align(arc, LV_ALIGN_CENTER, 0, 0);
-	lv_obj_set_size(arc, 150, 150);
+}
 
-	arc_group = lv_group_create();
-	lv_group_add_obj(arc_group, arc);
-	lv_indev_set_group(lvgl_input_get_indev(lvgl_encoder), arc_group);
-#endif /* CONFIG_LV_Z_ENCODER_INPUT */
+static void lv_btn_click_callback_left(lv_event_t *e)
+{
+	LOG_DBG("Button press left");
+	ARG_UNUSED(e);
+	lv_obj_del(scr_left);
+	create_screen_home();
+}
 
-	if (IS_ENABLED(CONFIG_LV_Z_POINTER_KSCAN) || IS_ENABLED(CONFIG_LV_Z_POINTER_INPUT)) {
-		lv_obj_t *hello_world_button;
+static void lv_btn_click_callback_right(lv_event_t *e)
+{
+	LOG_DBG("Button press right");
+	ARG_UNUSED(e);
+	lv_obj_del(scr_right);
+	create_screen_home();
+}
 
-		hello_world_button = lv_btn_create(lv_scr_act());
-		lv_obj_align(hello_world_button, LV_ALIGN_CENTER, 0, 0);
-		lv_obj_add_event_cb(hello_world_button, lv_btn_click_callback, LV_EVENT_CLICKED,
-						NULL);
-		hello_world_label = lv_label_create(hello_world_button);
-	} else {
-		hello_world_label = lv_label_create(lv_scr_act());
-	}
+static void lv_btn_click_callback_top(lv_event_t *e)
+{
+	LOG_DBG("Button press top");
+	ARG_UNUSED(e);
+	lv_obj_del(scr_top);
+	create_screen_home();
+}
 
-	lv_label_set_text(hello_world_label, "Hello world!");
+static void lv_btn_click_callback_bottom(lv_event_t *e)
+{
+	LOG_DBG("Button press bottom");
+	ARG_UNUSED(e);
+	lv_obj_del(scr_bottom);
+	create_screen_home();
+}
+
+int create_screen_home()
+{
+	scr_home = lv_obj_create(NULL);
+	// Used this function as it automatically deletes previous screen.
+	// Should work as you did also I think. But have not used lv_scr_load_xxx before
+  	lv_scr_load_anim(scr_home, LV_SCR_LOAD_ANIM_NONE, 0, 0, true);
+
+	lv_obj_t *hello_world_label;
+	lv_obj_t *count_label;
+
+	lv_obj_set_style_bg_color(lv_scr_act(), lv_palette_main(LV_PALETTE_GREEN), LV_PART_MAIN);
+	lv_obj_set_style_text_color(lv_scr_act(), lv_color_white(), LV_PART_MAIN);
+
+	hello_world_label = lv_label_create(lv_scr_act());
+
+	lv_label_set_text(hello_world_label, "Swipe to test!");
 	lv_obj_align(hello_world_label, LV_ALIGN_CENTER, 0, 0);
+	lv_obj_set_style_text_font(hello_world_label, &lv_font_montserrat_16, LV_PART_MAIN);
 
 	count_label = lv_label_create(lv_scr_act());
 	lv_obj_align(count_label, LV_ALIGN_BOTTOM_MID, 0, 0);
 
-	lv_task_handler();
-	display_blanking_off(display_dev);
+	lv_obj_add_event_cb(lv_scr_act(), on_lvgl_screen_gesture_event_callback, LV_EVENT_GESTURE, NULL);
 
-	while (1) {
-		if ((count % 100) == 0U) {
-			sprintf(count_str, "%d", count/100U);
-			lv_label_set_text(count_label, count_str);
-		}
-		lv_task_handler();
-		++count;
-		k_sleep(K_MSEC(10));
+	return 0;
+}
+
+int create_screen_left()
+{
+	scr_left = lv_obj_create(NULL);
+	// Used this function as it automatically deletes previous screen.
+	// Should work as you did also I think. But have not used lv_scr_load_xxx before
+  	lv_scr_load_anim(scr_left, LV_SCR_LOAD_ANIM_NONE, 0, 0, true);
+
+	lv_obj_set_style_bg_color(lv_scr_act(), lv_color_black(), LV_PART_MAIN);
+	lv_obj_set_style_text_color(lv_scr_act(), lv_color_white(), LV_PART_MAIN);
+
+	lv_obj_t *label = lv_label_create(lv_scr_act());
+
+	if (IS_ENABLED(CONFIG_LV_Z_POINTER_KSCAN) || IS_ENABLED(CONFIG_LV_Z_POINTER_INPUT)) {
+		lv_obj_t *home_button;
+
+		home_button = lv_btn_create(lv_scr_act());
+		lv_obj_align(home_button, LV_ALIGN_CENTER, 0, 0);
+		lv_obj_add_event_cb(home_button, lv_btn_click_callback_left, LV_EVENT_CLICKED,
+						NULL);
+		label = lv_label_create(home_button);
+	} else {
+		label = lv_label_create(lv_scr_act());
 	}
+
+
+	lv_label_set_text(label, "LV_DIR_LEFT (1)");
+	lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+	lv_obj_set_style_text_font(label, &lv_font_montserrat_16, LV_PART_MAIN);
+
+	return 0;
+}
+
+int create_screen_right()
+{
+	scr_right = lv_obj_create(NULL);
+	// Used this function as it automatically deletes previous screen.
+	// Should work as you did also I think. But have not used lv_scr_load_xxx before
+  	lv_scr_load_anim(scr_right, LV_SCR_LOAD_ANIM_NONE, 0, 0, true);
+
+	lv_obj_set_style_bg_color(lv_scr_act(), lv_color_black(), LV_PART_MAIN);
+	lv_obj_set_style_text_color(lv_scr_act(), lv_color_white(), LV_PART_MAIN);
+
+	lv_obj_t *label = lv_label_create(lv_scr_act());
+
+	if (IS_ENABLED(CONFIG_LV_Z_POINTER_KSCAN) || IS_ENABLED(CONFIG_LV_Z_POINTER_INPUT)) {
+		lv_obj_t *home_button;
+
+		home_button = lv_btn_create(lv_scr_act());
+		lv_obj_align(home_button, LV_ALIGN_CENTER, 0, 0);
+		lv_obj_add_event_cb(home_button, lv_btn_click_callback_right, LV_EVENT_CLICKED,
+						NULL);
+		label = lv_label_create(home_button);
+	} else {
+		label = lv_label_create(lv_scr_act());
+	}
+
+	lv_label_set_text(label, "LV_DIR_RIGHT (2)");
+	lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+	lv_obj_set_style_text_font(label, &lv_font_montserrat_16, LV_PART_MAIN);
+
+	return 0;
+}
+
+int create_screen_top()
+{
+	scr_top = lv_obj_create(NULL);
+	// Used this function as it automatically deletes previous screen.
+	// Should work as you did also I think. But have not used lv_scr_load_xxx before
+  	lv_scr_load_anim(scr_top, LV_SCR_LOAD_ANIM_NONE, 0, 0, true);
+
+	lv_obj_set_style_bg_color(lv_scr_act(), lv_color_black(), LV_PART_MAIN);
+	lv_obj_set_style_text_color(lv_scr_act(), lv_color_white(), LV_PART_MAIN);
+
+	lv_obj_t *label = lv_label_create(lv_scr_act());
+
+	if (IS_ENABLED(CONFIG_LV_Z_POINTER_KSCAN) || IS_ENABLED(CONFIG_LV_Z_POINTER_INPUT)) {
+		lv_obj_t *home_button;
+
+		home_button = lv_btn_create(lv_scr_act());
+		lv_obj_align(home_button, LV_ALIGN_CENTER, 0, 0);
+		lv_obj_add_event_cb(home_button, lv_btn_click_callback_top, LV_EVENT_CLICKED,
+						NULL);
+		label = lv_label_create(home_button);
+	} else {
+		label = lv_label_create(lv_scr_act());
+	}
+
+	lv_label_set_text(label, "LV_DIR_TOP (3)");
+	lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+	lv_obj_set_style_text_font(label, &lv_font_montserrat_16, LV_PART_MAIN);
+
+	return 0;
+}
+
+int create_screen_bottom()
+{
+	scr_bottom = lv_obj_create(NULL);
+	// Used this function as it automatically deletes previous screen.
+	// Should work as you did also I think. But have not used lv_scr_load_xxx before
+  	lv_scr_load_anim(scr_bottom, LV_SCR_LOAD_ANIM_NONE, 0, 0, true);
+
+	lv_obj_set_style_bg_color(lv_scr_act(), lv_color_black(), LV_PART_MAIN);
+	lv_obj_set_style_text_color(lv_scr_act(), lv_color_white(), LV_PART_MAIN);
+
+	lv_obj_t *label = lv_label_create(lv_scr_act());
+
+	if (IS_ENABLED(CONFIG_LV_Z_POINTER_KSCAN) || IS_ENABLED(CONFIG_LV_Z_POINTER_INPUT)) {
+		lv_obj_t *home_button;
+
+		home_button = lv_btn_create(lv_scr_act());
+		lv_obj_align(home_button, LV_ALIGN_CENTER, 0, 0);
+		lv_obj_add_event_cb(home_button, lv_btn_click_callback_bottom, LV_EVENT_CLICKED,
+						NULL);
+		label = lv_label_create(home_button);
+	} else {
+		label = lv_label_create(lv_scr_act());
+	}
+
+	lv_label_set_text(label, "LV_DIR_BOTTOM (4)");
+	lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
+	lv_obj_set_style_text_font(label, &lv_font_montserrat_16, LV_PART_MAIN);
+
+	return 0;
+}
+
+
+static void on_input_subsys_callback(struct input_event *evt)
+{
+	LOG_DBG("input subsys type=%d,code=%d,value=%d", evt->type, evt->code, evt->value);
+	lv_color_t c0;
+    lv_color_t c1;
+
+    c0.full = 0;
+    c1.full = 1;
+	
+	//LOG_DBG("input subsys type,code,value,%d,%d,%d", evt->type, evt->code, evt->value);
+	if (evt->code == INPUT_ABS_X) {
+		last_x = evt->value;
+	}
+	if (evt->code == INPUT_ABS_Y) {
+		last_y = evt->value;
+	}
+	if (last_x != -1 && last_y != -1) {
+		//lv_canvas_set_px_color(canvas, last_x, last_y, c0);
+		last_x = -1;
+		last_y = -1;
+	}
+}
+
+static void on_lvgl_screen_gesture_event_callback(lv_event_t *e)
+{
+	LOG_DBG("Gesture event detected %d", e->code);
+    lv_dir_t  dir;
+    lv_event_code_t event = lv_event_get_code(e);
+    if (event == LV_EVENT_GESTURE) {
+        dir = lv_indev_get_gesture_dir(lv_indev_get_act());
+        handle_screen_gesture(dir);
+    }
+	lv_indev_wait_release(lv_indev_get_act()); // Needed otherwise accidental button press will happen
 }
