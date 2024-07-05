@@ -66,7 +66,8 @@ int main(void)
 	
 	while (1) {
 		lv_task_handler();
-		k_sleep(K_MSEC(10));
+		//k_sleep(K_MSEC(10));
+		k_sleep(K_MSEC(250));
 	}
 	
 }
@@ -140,7 +141,6 @@ int create_screen_home()
   	lv_scr_load_anim(scr_home, LV_SCR_LOAD_ANIM_NONE, 0, 0, true);
 
 	lv_obj_t *hello_world_label;
-	lv_obj_t *count_label;
 
 	lv_obj_set_style_bg_color(lv_scr_act(), lv_palette_main(LV_PALETTE_GREEN), LV_PART_MAIN);
 	lv_obj_set_style_text_color(lv_scr_act(), lv_color_white(), LV_PART_MAIN);
@@ -151,8 +151,6 @@ int create_screen_home()
 	lv_obj_align(hello_world_label, LV_ALIGN_CENTER, 0, 0);
 	lv_obj_set_style_text_font(hello_world_label, &lv_font_montserrat_16, LV_PART_MAIN);
 
-	count_label = lv_label_create(lv_scr_act());
-	lv_obj_align(count_label, LV_ALIGN_BOTTOM_MID, 0, 0);
 
 	lv_obj_add_event_cb(lv_scr_act(), on_lvgl_screen_gesture_event_callback, LV_EVENT_GESTURE, NULL);
 
