@@ -1,0 +1,13 @@
+menu "Zephyr Kernel"
+    source "Kconfig.zephyr"
+endmenu
+
+menu "Touchscreen Configuration"
+
+    config LOGGING_SWIPES_ONLY
+        bool "Don't show screens and only log swipes"
+        default n
+        help
+            This is a way to test the touch capabilities of the screen without specific screen sipes or button presses.
+
+endmenu

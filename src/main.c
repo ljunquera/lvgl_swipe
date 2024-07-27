@@ -37,6 +37,7 @@ int create_screen_left();
 int create_screen_right();
 int create_screen_top();
 int create_screen_bottom();
+int create_screen_test();
 
 static void lv_btn_click_callback_left(lv_event_t *e);
 static void lv_btn_click_callback_right(lv_event_t *e);
@@ -49,6 +50,7 @@ static void on_input_subsys_callback(struct input_event *evt);
 
 int main(void)
 {
+	LOG_DBG("Starting lvgl test");
 	const struct device *display_dev;
 
 	display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
@@ -59,7 +61,11 @@ int main(void)
 
 	//INPUT_CALLBACK_DEFINE(NULL, on_input_subsys_callback);
 
+#if CONFIG_LOGGING_SWIPES_ONLY
+	create_screen_test();
+#else
 	create_screen_home();
+#endif
 	lv_task_handler();
 	display_blanking_off(display_dev);
 
@@ -135,6 +141,7 @@ static void lv_btn_click_callback_bottom(lv_event_t *e)
 
 int create_screen_home()
 {
+	LOG_DBG("Creating home screen");
 	scr_home = lv_obj_create(NULL);
 	// Used this function as it automatically deletes previous screen.
 	// Should work as you did also I think. But have not used lv_scr_load_xxx before
@@ -159,6 +166,7 @@ int create_screen_home()
 
 int create_screen_left()
 {
+	LOG_DBG("Creating left screen");
 	scr_left = lv_obj_create(NULL);
 	// Used this function as it automatically deletes previous screen.
 	// Should work as you did also I think. But have not used lv_scr_load_xxx before
@@ -191,6 +199,7 @@ int create_screen_left()
 
 int create_screen_right()
 {
+	LOG_DBG("Creating right screen");
 	scr_right = lv_obj_create(NULL);
 	// Used this function as it automatically deletes previous screen.
 	// Should work as you did also I think. But have not used lv_scr_load_xxx before
@@ -222,6 +231,7 @@ int create_screen_right()
 
 int create_screen_top()
 {
+	LOG_DBG("Creating top screen");
 	scr_top = lv_obj_create(NULL);
 	// Used this function as it automatically deletes previous screen.
 	// Should work as you did also I think. But have not used lv_scr_load_xxx before
@@ -253,6 +263,7 @@ int create_screen_top()
 
 int create_screen_bottom()
 {
+	LOG_DBG("Creating bottom screen");
 	scr_bottom = lv_obj_create(NULL);
 	// Used this function as it automatically deletes previous screen.
 	// Should work as you did also I think. But have not used lv_scr_load_xxx before
@@ -309,6 +320,7 @@ static void on_input_subsys_callback(struct input_event *evt)
 static void on_lvgl_screen_gesture_event_callback(lv_event_t *e)
 {
 	LOG_DBG("Gesture event detected %d", e->code);
+	#if CONFIG_LOGGING_SWIPES_ONLY==0
     lv_dir_t  dir;
     lv_event_code_t event = lv_event_get_code(e);
     if (event == LV_EVENT_GESTURE) {
@@ -316,4 +328,31 @@ static void on_lvgl_screen_gesture_event_callback(lv_event_t *e)
         handle_screen_gesture(dir);
     }
 	lv_indev_wait_release(lv_indev_get_act()); // Needed otherwise accidental button press will happen
+	#endif
+}
+
+int create_screen_test()
+{
+	LOG_DBG("Creating test screen");
+	scr_home = lv_obj_create(NULL);
+	// Used this function as it automatically deletes previous screen.
+	// Should work as you did also I think. But have not used lv_scr_load_xxx before
+  	lv_scr_load_anim(scr_home, LV_SCR_LOAD_ANIM_NONE, 0, 0, true);
+
+	lv_obj_t *hello_world_label;
+
+	lv_obj_set_style_bg_color(lv_scr_act(), lv_palette_main(LV_PALETTE_LIGHT_BLUE), LV_PART_MAIN);
+	lv_obj_set_style_text_color(lv_scr_act(), lv_color_white(), LV_PART_MAIN);
+
+	hello_world_label = lv_label_create(lv_scr_act());
+
+	lv_label_set_text(hello_world_label, "Swipe to test!");
+	lv_obj_align(hello_world_label, LV_ALIGN_CENTER, 0, 0);
+	lv_obj_set_style_text_font(hello_world_label, &lv_font_montserrat_16, LV_PART_MAIN);
+
+
+	lv_obj_add_event_cb(lv_scr_act(), on_lvgl_screen_gesture_event_callback, LV_EVENT_GESTURE, NULL);
+
+	return 0;
+
 }
