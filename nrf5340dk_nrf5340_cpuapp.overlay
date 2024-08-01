@@ -93,8 +93,8 @@
     lvgl_pointer_input: lvgl_pointer {
         compatible = "zephyr,lvgl-pointer-input";
         input = <&cst816s>;
-        swap-xy;
-        invert-x;
+        //swap-xy;
+        //invert-x;
     };
 
     aliases {

@@ -10,4 +10,11 @@ menu "Touchscreen Configuration"
         help
             This is a way to test the touch capabilities of the screen without specific screen sipes or button presses.
 
+
+    config LOG_GESTURES_ONLY
+        bool "Don't show screens but log when a geeature is detected"
+        default n
+        help
+            This is a way to test the touch capabilities of the screen without specific screen sipes or button presses.
+
 endmenu

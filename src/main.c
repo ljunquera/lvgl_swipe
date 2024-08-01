@@ -83,22 +83,30 @@ static void handle_screen_gesture(lv_dir_t event_code)
         switch (event_code) {
             case LV_DIR_LEFT: {
 				LOG_DBG("LEFT gesture detected");
+				#if LOG_GESTURES_ONLY==1
 				create_screen_left();
+				#endif
                 break;
             }
             case LV_DIR_RIGHT: {
 				LOG_DBG("RIGHT gesture detected");
+				#if LOG_GESTURES_ONLY==1
 				create_screen_right();
+				#endif
                 break;
             }
             case LV_DIR_TOP: {
 				LOG_DBG("TOP gesture detected");
+				#if LOG_GESTURES_ONLY==1
 				create_screen_top();
+				#endif
                 break;
             }
             case LV_DIR_BOTTOM: {
 				LOG_DBG("BOTTOM gesture detected");
+				#if LOG_GESTURES_ONLY==1
       			create_screen_bottom();
+				#endif
                 break;
             }
             default:
