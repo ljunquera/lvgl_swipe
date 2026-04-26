@@ -1,0 +1,157 @@
+&pinctrl {
+    /* Backlight PWM Pin */
+    pwm20_default: pwm20_default {
+        group1 {
+            psels = <NRF_PSEL(PWM_OUT0, 0, 7)>; 
+        };
+    };
+
+    pwm20_sleep: pwm20_sleep {
+        group1 {
+            psels = <NRF_PSEL(PWM_OUT0, 0, 7)>;
+            low-power-enable;
+        };
+    };
+
+    /* Display SPI Pins - Switched to SPI21 to avoid UART collision */
+    spi21_default: spi21_default {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 1, 13)>,
+                    <NRF_PSEL(SPIM_MOSI, 1, 14)>;
+        };
+    };
+
+    spi21_sleep: spi21_sleep {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 1, 13)>,
+                    <NRF_PSEL(SPIM_MOSI, 1, 14)>;
+            low-power-enable;
+        };
+    };
+
+    /* Touch Controller I2C Pins */
+    i2c30_default: i2c30_default {
+        group1 {
+            psels = <NRF_PSEL(TWIM_SDA, 0, 4)>,
+                    <NRF_PSEL(TWIM_SCL, 0, 3)>;
+            bias-pull-up;
+        };
+    };
+
+    i2c30_sleep: i2c30_sleep {
+        group1 {
+            psels = <NRF_PSEL(TWIM_SDA, 0, 4)>,
+                    <NRF_PSEL(TWIM_SCL, 0, 3)>;
+            low-power-enable;
+            bias-pull-up;
+        };
+    };
+};
+
+&pwm20 {
+    status = "okay";
+    pinctrl-0 = <&pwm20_default>;
+    pinctrl-1 = <&pwm20_sleep>;
+    pinctrl-names = "default", "sleep";
+};
+
+/* Switched from &spi20 to &spi21 */
+&spi21 {
+    compatible = "nordic,nrf-spim";
+    status = "okay";
+    pinctrl-0 = <&spi21_default>;
+    pinctrl-1 = <&spi21_sleep>;
+    pinctrl-names = "default", "sleep";
+    cs-gpios = <&gpio1 15 GPIO_ACTIVE_LOW>;
+};
+
+&i2c30 {
+    compatible = "nordic,nrf-twim";
+    status = "okay";
+    clock-frequency = <I2C_BITRATE_STANDARD>;
+    pinctrl-0 = <&i2c30_default>;
+    pinctrl-1 = <&i2c30_sleep>;
+    pinctrl-names = "default", "sleep";
+
+    cst816s: cst816s@15 {
+        compatible = "hynitron,cst816s";
+        reg = <0x15>;
+        irq-gpios = <&gpio1 4 GPIO_ACTIVE_LOW>;
+        rst-gpios = <&gpio1 5 GPIO_ACTIVE_LOW>;
+    };
+};
+
+&nfct {
+    status = "disabled";
+};
+
+
+&uicr {
+    nfct-pins-as-gpios;
+};
+
+&spi00 { status = "disabled"; }; 
+
+/ {
+
+    chosen {
+        zephyr,display = &st7789v_st7789v_tl019fqv01;
+        zephyr,keyboard-scan = &cst816s;
+    };
+
+    mipi_dbi {
+        compatible = "zephyr,mipi-dbi-spi";
+        spi-dev = <&spi21>; /* Tell MIPI to use the new SPI21 block */
+        dc-gpios = <&gpio1 11 GPIO_ACTIVE_HIGH>;
+        reset-gpios =  <&gpio1 10 GPIO_ACTIVE_LOW>;
+        write-only;
+        #address-cells = <1>;
+        #size-cells = <0>;
+        
+        st7789v_st7789v_tl019fqv01: st7789v@0 {
+            compatible = "sitronix,st7789v";
+            mipi-max-frequency = <20000000>;
+            reg = <0>;
+            width = <240>;
+            height = <280>;
+            x-offset = <0>;
+            y-offset = <20>;
+            vcom = <0x19>;
+            gctrl = <0x35>;
+            vrhs = <0x12>;
+            vdvs = <0x20>;
+            mdac = <0x00>;
+            gamma = <0x01>;
+            colmod = <0x05>;
+            lcm = <0x2c>;
+            porch-param = [0c 0c 00 33 33];
+            cmd2en-param = [5a 69 02 01];
+            pwctrl1-param = [a4 a1];
+            pvgam-param = [D0 04 0D 11 13 2B 3F 54 4C 18 0D 0B 1F 23];
+            nvgam-param = [D0 04 0C 11 13 2C 3F 44 51 2F 1F 1F 20 23];
+            ram-param = [00 F0];
+            rgb-param = [CD 08 14];
+            mipi-mode = "MIPI_DBI_MODE_SPI_4WIRE";
+        };
+    };
+
+    lvgl_pointer_input: lvgl_pointer {
+        compatible = "zephyr,lvgl-pointer-input";
+        input = <&cst816s>;
+    };
+
+    aliases {
+        input = &cst816s;
+        pwm-led0 = &display_blk;
+    };
+
+    pwmleds {
+        compatible = "pwm-leds";
+        display_blk: pwm_led_0 {
+            pwms = <&pwm20 0 PWM_USEC(15) PWM_POLARITY_NORMAL>;
+            label = "Display Backlight";
+        };
+    };
+};
+
+

@@ -1,8 +1,4 @@
-/*
- * Copyright (c) 2018 Jan Van Winkel <jan.van_winkel@dxplore.eu>
- *
- * SPDX-License-Identifier: Apache-2.0
- */
+
 
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
@@ -14,6 +10,7 @@
 #include <string.h>
 #include <zephyr/kernel.h>
 #include <lvgl_input_device.h>
+#include <zephyr/drivers/led.h>
 
 #define LOG_LEVEL CONFIG_LOG_DEFAULT_LEVEL
 #include <zephyr/logging/log.h>
@@ -24,6 +21,7 @@ LOG_MODULE_REGISTER(app, LOG_LEVEL_DBG);
 
 static int last_x = -1;
 static int last_y = -1; 
+
 
 //screens
 static  lv_obj_t *scr_home;
@@ -52,6 +50,25 @@ int main(void)
 {
 	LOG_DBG("Starting lvgl test");
 	const struct device *display_dev;
+
+	#if CONFIG_LOG_GESTURES_ONLY==1
+	LOG_DBG("LOG_GESTURES_ONLY enabled");
+	#else
+	LOG_DBG("LOG_GESTURES_ONLY disabled");
+	#endif
+	#if CONFIG_LOGGING_SWIPES_ONLY==1
+	LOG_DBG("CONFIG_LOGGING_SWIPES_ONLY enabled");
+	#else
+	LOG_DBG("CONFIG_LOGGING_SWIPES_ONLY disabled");
+	#endif
+
+	/* Turn on the display backlight */
+	const struct device *backlight = DEVICE_DT_GET_ANY(pwm_leds);
+	if (device_is_ready(backlight)) {
+		led_set_brightness(backlight, 0, 100);  /* 100% brightness */
+	} else {
+		LOG_ERR("Backlight device not ready");
+	}
 
 	display_dev = DEVICE_DT_GET(DT_CHOSEN(zephyr_display));
 	if (!device_is_ready(display_dev)) {
@@ -83,28 +100,28 @@ static void handle_screen_gesture(lv_dir_t event_code)
         switch (event_code) {
             case LV_DIR_LEFT: {
 				LOG_DBG("LEFT gesture detected");
-				#if LOG_GESTURES_ONLY==1
+				#if COFIG_LOG_GESTURES_ONLY==0
 				create_screen_left();
 				#endif
                 break;
             }
             case LV_DIR_RIGHT: {
 				LOG_DBG("RIGHT gesture detected");
-				#if LOG_GESTURES_ONLY==1
+				#if CONFIG_LOG_GESTURES_ONLY==0
 				create_screen_right();
 				#endif
                 break;
             }
             case LV_DIR_TOP: {
 				LOG_DBG("TOP gesture detected");
-				#if LOG_GESTURES_ONLY==1
+				#if CONFIG_LOG_GESTURES_ONLY==0
 				create_screen_top();
 				#endif
                 break;
             }
             case LV_DIR_BOTTOM: {
 				LOG_DBG("BOTTOM gesture detected");
-				#if LOG_GESTURES_ONLY==1
+				#if CONFIG_LOG_GESTURES_ONLY==0
       			create_screen_bottom();
 				#endif
                 break;
@@ -308,8 +325,8 @@ static void on_input_subsys_callback(struct input_event *evt)
 	lv_color_t c0;
     lv_color_t c1;
 
-    c0.full = 0;
-    c1.full = 1;
+	c0 = lv_color_black();
+    c1 = lv_color_white();
 	
 	//LOG_DBG("input subsys type,code,value,%d,%d,%d", evt->type, evt->code, evt->value);
 	if (evt->code == INPUT_ABS_X) {
@@ -327,7 +344,7 @@ static void on_input_subsys_callback(struct input_event *evt)
 
 static void on_lvgl_screen_gesture_event_callback(lv_event_t *e)
 {
-	LOG_DBG("Gesture event detected %d", e->code);
+	LOG_DBG("Gesture event detected %d", lv_event_get_code(e));
 	#if CONFIG_LOGGING_SWIPES_ONLY==0
     lv_dir_t  dir;
     lv_event_code_t event = lv_event_get_code(e);
